@@ -534,7 +534,7 @@ data SolverLine = SolverRegular   String  -- ^ All is well
 
 -- | A variant of @readProcessWithExitCode@; except it deals with SBV continuations
 runSolver :: SMTConfig -> State -> FilePath -> [String] -> String -> (State -> IO a) -> IO a
-runSolver cfg ctx execPath opts pgm continuation
+runSolver cfg ctx execPath opts pgm runQuery
  = do let nm  = show (name (solver cfg))
           msg = debug cfg . map ("*** " ++)
 
@@ -811,7 +811,7 @@ runSolver cfg ctx execPath opts pgm continuation
                                                           ]
 
                              -- off we go!
-                             continuation ctx
+                             runQuery ctx
 
       -- NB. Don't use 'bracket' here, as it wouldn't have access to the exception.
       let launchSolver = do startTranscript    (transcript cfg) cfg
