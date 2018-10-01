@@ -541,182 +541,187 @@ data SolverProcess = SolverProcess {
         , abort       :: IO ExitCode                      -- ^ aborts the process immediately
         }
 
+startExecutableProcess :: SMTConfig -> FilePath -> [String] -> IO SolverProcess
+startExecutableProcess cfg execPath opts = do
+    (inh, outh, errh, pid) <- runInteractiveProcess execPath opts Nothing Nothing
+
+    let nm  = show (name (solver cfg))
+        msg = debug cfg . map ("*** " ++)
+
+        -- send a command down, but check that we're balanced in parens. If we aren't
+        -- this is most likely an SBV bug.
+        send :: Maybe Int -> String -> IO ()
+        send mbTimeOut command
+          | parenDeficit command /= 0
+          = error $ unlines [ ""
+                            , "*** Data.SBV: Unbalanced input detected."
+                            , "***"
+                            , "***   Sending: " ++ command
+                            , "***"
+                            , "*** This is most likely an SBV bug. Please report!"
+                            ]
+          | True
+          = do hPutStrLn inh command
+               hFlush inh
+               recordTranscript (transcript cfg) $ Left (command, mbTimeOut)
+
+        -- Send a line, get a whole s-expr. We ignore the pathetic case that there might be a string with an unbalanced parentheses in it in a response.
+        ask :: Maybe Int -> String -> IO String
+        ask mbTimeOut command =
+                      -- solvers don't respond to empty lines or comments; we just pass back
+                      -- success in these cases to keep the illusion of everything has a response
+                      let cmd = dropWhile isSpace command
+                      in if null cmd || ";" `isPrefixOf` cmd
+                         then return "success"
+                         else do send mbTimeOut command
+                                 getResponseFromSolver' (Just command) mbTimeOut
+
+        -- Get a response from the solver, with an optional time-out on how long
+        -- to wait. Note that there's *always* a time-out of 5 seconds once we get the
+        -- first line of response, as while the solver might take it's time to respond,
+        -- once it starts responding successive lines should come quickly.
+        getResponseFromSolver :: Maybe Int -> IO String
+        getResponseFromSolver = getResponseFromSolver' Nothing
+
+        getResponseFromSolver' :: Maybe String -> Maybe Int -> IO String
+        getResponseFromSolver' mbCommand mbTimeOut = do
+                    response <- go True 0 []
+                    let collated = intercalate "\n" $ reverse response
+                    recordTranscript (transcript cfg) $ Right collated
+                    return collated
+
+          where safeGetLine isFirst h =
+                             let timeOutToUse | isFirst = mbTimeOut
+                                              | True    = Just 5000000
+                                 timeOutMsg t | isFirst = "User specified timeout of " ++ showTimeoutValue t ++ " exceeded."
+                                              | True    = "A multiline complete response wasn't received before " ++ showTimeoutValue t ++ " exceeded."
+
+                                 -- Like hGetLine, except it keeps getting lines if inside a string.
+                                 getFullLine :: IO String
+                                 getFullLine = intercalate "\n" . reverse <$> collect False []
+                                    where collect inString sofar = do ln <- hGetLine h
+
+                                                                      let walk inside []           = inside
+                                                                          walk inside ('"':cs)     = walk (not inside) cs
+                                                                          walk inside (_:cs)       = walk inside       cs
+
+                                                                          stillInside = walk inString ln
+
+                                                                          sofar' = ln : sofar
+
+                                                                      if stillInside
+                                                                         then collect True sofar'
+                                                                         else return sofar'
+
+                             in case timeOutToUse of
+                                  Nothing -> SolverRegular <$> getFullLine
+                                  Just t  -> do r <- Timeout.timeout t getFullLine
+                                                case r of
+                                                  Just l  -> return $ SolverRegular l
+                                                  Nothing -> return $ SolverTimeout $ timeOutMsg t
+
+
+                go isFirst i sofar = do
+                                errln <- safeGetLine isFirst outh `C.catch` (\(e :: C.SomeException) -> handleAsync e (return (SolverException (show e))))
+                                case errln of
+                                  SolverRegular ln -> let need  = i + parenDeficit ln
+                                                          -- make sure we get *something*
+                                                          empty = case dropWhile isSpace ln of
+                                                                    []      -> True
+                                                                    (';':_) -> True   -- yes this does happen! I've seen z3 print out comments on stderr.
+                                                                    _       -> False
+                                                      in case (empty, need <= 0) of
+                                                            (True, _)      -> do debug cfg ["[SKIP] " `alignPlain` ln]
+                                                                                 go isFirst need sofar
+                                                            (False, False) -> go False   need (ln:sofar)
+                                                            (False, True)  -> return (ln:sofar)
+
+                                  SolverException e -> do terminateProcess pid
+                                                          C.throwIO SBVException { sbvExceptionDescription = e
+                                                                                 , sbvExceptionSent        = mbCommand
+                                                                                 , sbvExceptionExpected    = Nothing
+                                                                                 , sbvExceptionReceived    = Just $ unlines (reverse sofar)
+                                                                                 , sbvExceptionStdOut      = Nothing
+                                                                                 , sbvExceptionStdErr      = Nothing
+                                                                                 , sbvExceptionExitCode    = Nothing
+                                                                                 , sbvExceptionConfig      = cfg { solver = (solver cfg) { executable = execPath } }
+                                                                                 , sbvExceptionReason      = Nothing
+                                                                                 , sbvExceptionHint        = Nothing
+                                                                                 }
+
+                                  SolverTimeout e -> do terminateProcess pid -- NB. Do not *wait* for the process, just quit.
+                                                        C.throwIO SBVException { sbvExceptionDescription = "Timeout! " ++ e
+                                                                               , sbvExceptionSent        = mbCommand
+                                                                               , sbvExceptionExpected    = Nothing
+                                                                               , sbvExceptionReceived    = Just $ unlines (reverse sofar)
+                                                                               , sbvExceptionStdOut      = Nothing
+                                                                               , sbvExceptionStdErr      = Nothing
+                                                                               , sbvExceptionExitCode    = Nothing
+                                                                               , sbvExceptionConfig      = cfg { solver = (solver cfg) { executable = execPath } }
+                                                                               , sbvExceptionReason      = Nothing
+                                                                               , sbvExceptionHint        = if not (verbose cfg)
+                                                                                                           then Just ["Run with 'verbose=True' for further information"]
+                                                                                                           else Nothing
+                                                                               }
+
+        closeSolver = do hClose inh
+                         outMVar <- newEmptyMVar
+                         out <- hGetContents outh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return (show e)))
+                         _ <- forkIO $ C.evaluate (length out) >> putMVar outMVar ()
+                         err <- hGetContents errh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return (show e)))
+                         _ <- forkIO $ C.evaluate (length err) >> putMVar outMVar ()
+                         takeMVar outMVar
+                         takeMVar outMVar
+                         hClose outh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return ()))
+                         hClose errh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return ()))
+                         ex <- waitForProcess pid `C.catch` (\(e :: C.SomeException) -> handleAsync e (return (ExitFailure (-999))))
+                         return (out, err, ex)
+
+        cleanUp
+          = do (out, err, ex) <- closeSolver
+
+               msg $   [ "Solver   : " ++ nm
+                       , "Exit code: " ++ show ex
+                       ]
+                    ++ [ "Std-out  : " ++ intercalate "\n           " (lines out) | not (null out)]
+                    ++ [ "Std-err  : " ++ intercalate "\n           " (lines err) | not (null err)]
+
+               case ex of
+                 ExitSuccess -> return ()
+                 _           -> if ignoreExitCode cfg
+                                   then msg ["Ignoring non-zero exit code of " ++ show ex ++ " per user request!"]
+                                   else C.throwIO SBVException { sbvExceptionDescription = "Failed to complete the call to " ++ nm
+                                                               , sbvExceptionSent        = Nothing
+                                                               , sbvExceptionExpected    = Nothing
+                                                               , sbvExceptionReceived    = Nothing
+                                                               , sbvExceptionStdOut      = Just out
+                                                               , sbvExceptionStdErr      = Just err
+                                                               , sbvExceptionExitCode    = Just ex
+                                                               , sbvExceptionConfig      = cfg { solver = (solver cfg) { executable = execPath } }
+                                                               , sbvExceptionReason      = Nothing
+                                                               , sbvExceptionHint        = if not (verbose cfg)
+                                                                                           then Just ["Run with 'verbose=True' for further information"]
+                                                                                           else Nothing
+                                                               }
+
+        abortSolver :: IO ExitCode
+        abortSolver = do terminateProcess pid
+                         waitForProcess pid
+
+    return SolverProcess { send        = send
+                         , ask         = ask
+                         , getResponse = getResponseFromSolver
+                         , close       = closeSolver
+                         , cleanUp     = cleanUp
+                         , abort       = abortSolver
+                         }
+
 -- | A variant of @readProcessWithExitCode@; except it deals with SBV continuations
 runSolver :: SMTConfig -> State -> FilePath -> [String] -> String -> (State -> IO a) -> IO a
 runSolver cfg ctx execPath opts pgm runQuery
  = do let nm  = show (name (solver cfg))
-          msg = debug cfg . map ("*** " ++)
 
-      SolverProcess {send,ask,getResponse,close,cleanUp,abort} <- do
-                (inh, outh, errh, pid) <- runInteractiveProcess execPath opts Nothing Nothing
-
-                let -- send a command down, but check that we're balanced in parens. If we aren't
-                    -- this is most likely an SBV bug.
-                    send :: Maybe Int -> String -> IO ()
-                    send mbTimeOut command
-                      | parenDeficit command /= 0
-                      = error $ unlines [ ""
-                                        , "*** Data.SBV: Unbalanced input detected."
-                                        , "***"
-                                        , "***   Sending: " ++ command
-                                        , "***"
-                                        , "*** This is most likely an SBV bug. Please report!"
-                                        ]
-                      | True
-                      = do hPutStrLn inh command
-                           hFlush inh
-                           recordTranscript (transcript cfg) $ Left (command, mbTimeOut)
-
-                    -- Send a line, get a whole s-expr. We ignore the pathetic case that there might be a string with an unbalanced parentheses in it in a response.
-                    ask :: Maybe Int -> String -> IO String
-                    ask mbTimeOut command =
-                                  -- solvers don't respond to empty lines or comments; we just pass back
-                                  -- success in these cases to keep the illusion of everything has a response
-                                  let cmd = dropWhile isSpace command
-                                  in if null cmd || ";" `isPrefixOf` cmd
-                                     then return "success"
-                                     else do send mbTimeOut command
-                                             getResponseFromSolver' (Just command) mbTimeOut
-
-                    -- Get a response from the solver, with an optional time-out on how long
-                    -- to wait. Note that there's *always* a time-out of 5 seconds once we get the
-                    -- first line of response, as while the solver might take it's time to respond,
-                    -- once it starts responding successive lines should come quickly.
-                    getResponseFromSolver :: Maybe Int -> IO String
-                    getResponseFromSolver = getResponseFromSolver' Nothing
-
-                    getResponseFromSolver' :: Maybe String -> Maybe Int -> IO String
-                    getResponseFromSolver' mbCommand mbTimeOut = do
-                                response <- go True 0 []
-                                let collated = intercalate "\n" $ reverse response
-                                recordTranscript (transcript cfg) $ Right collated
-                                return collated
-
-                      where safeGetLine isFirst h =
-                                         let timeOutToUse | isFirst = mbTimeOut
-                                                          | True    = Just 5000000
-                                             timeOutMsg t | isFirst = "User specified timeout of " ++ showTimeoutValue t ++ " exceeded."
-                                                          | True    = "A multiline complete response wasn't received before " ++ showTimeoutValue t ++ " exceeded."
-
-                                             -- Like hGetLine, except it keeps getting lines if inside a string.
-                                             getFullLine :: IO String
-                                             getFullLine = intercalate "\n" . reverse <$> collect False []
-                                                where collect inString sofar = do ln <- hGetLine h
-
-                                                                                  let walk inside []           = inside
-                                                                                      walk inside ('"':cs)     = walk (not inside) cs
-                                                                                      walk inside (_:cs)       = walk inside       cs
-
-                                                                                      stillInside = walk inString ln
-
-                                                                                      sofar' = ln : sofar
-
-                                                                                  if stillInside
-                                                                                     then collect True sofar'
-                                                                                     else return sofar'
-
-                                         in case timeOutToUse of
-                                              Nothing -> SolverRegular <$> getFullLine
-                                              Just t  -> do r <- Timeout.timeout t getFullLine
-                                                            case r of
-                                                              Just l  -> return $ SolverRegular l
-                                                              Nothing -> return $ SolverTimeout $ timeOutMsg t
-
-
-                            go isFirst i sofar = do
-                                            errln <- safeGetLine isFirst outh `C.catch` (\(e :: C.SomeException) -> handleAsync e (return (SolverException (show e))))
-                                            case errln of
-                                              SolverRegular ln -> let need  = i + parenDeficit ln
-                                                                      -- make sure we get *something*
-                                                                      empty = case dropWhile isSpace ln of
-                                                                                []      -> True
-                                                                                (';':_) -> True   -- yes this does happen! I've seen z3 print out comments on stderr.
-                                                                                _       -> False
-                                                                  in case (empty, need <= 0) of
-                                                                        (True, _)      -> do debug cfg ["[SKIP] " `alignPlain` ln]
-                                                                                             go isFirst need sofar
-                                                                        (False, False) -> go False   need (ln:sofar)
-                                                                        (False, True)  -> return (ln:sofar)
-
-                                              SolverException e -> do terminateProcess pid
-                                                                      C.throwIO SBVException { sbvExceptionDescription = e
-                                                                                             , sbvExceptionSent        = mbCommand
-                                                                                             , sbvExceptionExpected    = Nothing
-                                                                                             , sbvExceptionReceived    = Just $ unlines (reverse sofar)
-                                                                                             , sbvExceptionStdOut      = Nothing
-                                                                                             , sbvExceptionStdErr      = Nothing
-                                                                                             , sbvExceptionExitCode    = Nothing
-                                                                                             , sbvExceptionConfig      = cfg { solver = (solver cfg) { executable = execPath } }
-                                                                                             , sbvExceptionReason      = Nothing
-                                                                                             , sbvExceptionHint        = Nothing
-                                                                                             }
-
-                                              SolverTimeout e -> do terminateProcess pid -- NB. Do not *wait* for the process, just quit.
-                                                                    C.throwIO SBVException { sbvExceptionDescription = "Timeout! " ++ e
-                                                                                           , sbvExceptionSent        = mbCommand
-                                                                                           , sbvExceptionExpected    = Nothing
-                                                                                           , sbvExceptionReceived    = Just $ unlines (reverse sofar)
-                                                                                           , sbvExceptionStdOut      = Nothing
-                                                                                           , sbvExceptionStdErr      = Nothing
-                                                                                           , sbvExceptionExitCode    = Nothing
-                                                                                           , sbvExceptionConfig      = cfg { solver = (solver cfg) { executable = execPath } }
-                                                                                           , sbvExceptionReason      = Nothing
-                                                                                           , sbvExceptionHint        = if not (verbose cfg)
-                                                                                                                       then Just ["Run with 'verbose=True' for further information"]
-                                                                                                                       else Nothing
-                                                                                           }
-
-                    closeSolver = do hClose inh
-                                     outMVar <- newEmptyMVar
-                                     out <- hGetContents outh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return (show e)))
-                                     _ <- forkIO $ C.evaluate (length out) >> putMVar outMVar ()
-                                     err <- hGetContents errh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return (show e)))
-                                     _ <- forkIO $ C.evaluate (length err) >> putMVar outMVar ()
-                                     takeMVar outMVar
-                                     takeMVar outMVar
-                                     hClose outh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return ()))
-                                     hClose errh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return ()))
-                                     ex <- waitForProcess pid `C.catch` (\(e :: C.SomeException) -> handleAsync e (return (ExitFailure (-999))))
-                                     return (out, err, ex)
-
-                    cleanUp
-                      = do (out, err, ex) <- closeSolver
-
-                           msg $   [ "Solver   : " ++ nm
-                                   , "Exit code: " ++ show ex
-                                   ]
-                                ++ [ "Std-out  : " ++ intercalate "\n           " (lines out) | not (null out)]
-                                ++ [ "Std-err  : " ++ intercalate "\n           " (lines err) | not (null err)]
-
-                           case ex of
-                             ExitSuccess -> return ()
-                             _           -> if ignoreExitCode cfg
-                                               then msg ["Ignoring non-zero exit code of " ++ show ex ++ " per user request!"]
-                                               else C.throwIO SBVException { sbvExceptionDescription = "Failed to complete the call to " ++ nm
-                                                                           , sbvExceptionSent        = Nothing
-                                                                           , sbvExceptionExpected    = Nothing
-                                                                           , sbvExceptionReceived    = Nothing
-                                                                           , sbvExceptionStdOut      = Just out
-                                                                           , sbvExceptionStdErr      = Just err
-                                                                           , sbvExceptionExitCode    = Just ex
-                                                                           , sbvExceptionConfig      = cfg { solver = (solver cfg) { executable = execPath } }
-                                                                           , sbvExceptionReason      = Nothing
-                                                                           , sbvExceptionHint        = if not (verbose cfg)
-                                                                                                       then Just ["Run with 'verbose=True' for further information"]
-                                                                                                       else Nothing
-                                                                           }
-
-                    abortSolver :: IO ExitCode
-                    abortSolver = do terminateProcess pid
-                                     waitForProcess pid
-
-                return SolverProcess { send        = send
-                                     , ask         = ask
-                                     , getResponse = getResponseFromSolver
-                                     , close       = closeSolver
-                                     , cleanUp     = cleanUp
-                                     , abort       = abortSolver
-                                     }
+      SolverProcess {send,ask,getResponse,close,cleanUp,abort} <- startExecutableProcess cfg execPath opts
 
       let executeSolver = do let sendAndGetSuccess :: Maybe Int -> String -> IO ()
                                  sendAndGetSuccess mbTimeOut l
@@ -832,7 +837,7 @@ runSolver cfg ctx execPath opts pgm runQuery
                              -- off we go!
                              runQuery ctx
 
-      let finalize mExitCode = do finalizeTranscript (transcript cfg) mExitCode
+          finalize mExitCode = do finalizeTranscript (transcript cfg) mExitCode
                                   recordEndTime      cfg ctx
 
           -- NB. Don't use 'bracket' here, as it wouldn't have access to the exception.
