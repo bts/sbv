@@ -532,13 +532,22 @@ data SolverLine = SolverRegular   String  -- ^ All is well
                 | SolverTimeout   String  -- ^ Timeout expired
                 | SolverException String  -- ^ Something else went wrong
 
+data SolverProcess = SolverProcess {
+          send        :: Maybe Int -> String -> IO ()     -- ^ send a command down, checking for balanced parentheses
+        , ask         :: Maybe Int -> String -> IO String -- ^ send a line and get a whole s-expr
+        , getResponse :: Maybe Int -> IO String           -- ^ get a response from the solver, with an optional timeout
+        , close       :: IO (String, String, ExitCode)    -- ^ ends the process by closing its stdin
+        , cleanUp     :: IO ()                            -- ^ closes the process and raises if it did not exit cleanly
+        , abort       :: IO ExitCode                      -- ^ aborts the process immediately
+        }
+
 -- | A variant of @readProcessWithExitCode@; except it deals with SBV continuations
 runSolver :: SMTConfig -> State -> FilePath -> [String] -> String -> (State -> IO a) -> IO a
 runSolver cfg ctx execPath opts pgm runQuery
  = do let nm  = show (name (solver cfg))
           msg = debug cfg . map ("*** " ++)
 
-      (send, ask, getResponseFromSolver, closeSolver, cleanUp, abortSolver) <- do
+      SolverProcess {send,ask,getResponse,close,cleanUp,abort} <- do
                 (inh, outh, errh, pid) <- runInteractiveProcess execPath opts Nothing Nothing
 
                 let -- send a command down, but check that we're balanced in parens. If we aren't
@@ -701,7 +710,13 @@ runSolver cfg ctx execPath opts pgm runQuery
                     abortSolver = do terminateProcess pid
                                      waitForProcess pid
 
-                return (send, ask, getResponseFromSolver, closeSolver, cleanUp, abortSolver)
+                return SolverProcess { send        = send
+                                     , ask         = ask
+                                     , getResponse = getResponseFromSolver
+                                     , close       = closeSolver
+                                     , cleanUp     = cleanUp
+                                     , abort       = abortSolver
+                                     }
 
       let executeSolver = do let sendAndGetSuccess :: Maybe Int -> String -> IO ()
                                  sendAndGetSuccess mbTimeOut l
@@ -727,7 +742,7 @@ runSolver cfg ctx execPath opts pgm runQuery
                                                                                     ]
 
                                                             -- put a sync point here before we die so we consume everything
-                                                            mbExtras <- (Right <$> getResponseFromSolver (Just 5000000))
+                                                            mbExtras <- (Right <$> getResponse (Just 5000000))
                                                                         `C.catch` (\(e :: C.SomeException) -> handleAsync e (return (Left (show e))))
 
                                                             -- Ignore any exceptions from last sync, pointless.
@@ -735,7 +750,7 @@ runSolver cfg ctx execPath opts pgm runQuery
                                                                            Left _   -> []
                                                                            Right xs -> xs
 
-                                                            (outOrig, errOrig, ex) <- closeSolver
+                                                            (outOrig, errOrig, ex) <- close
                                                             let out = intercalate "\n" . lines $ outOrig
                                                                 err = intercalate "\n" . lines $ errOrig
 
@@ -796,7 +811,7 @@ runSolver cfg ctx execPath opts pgm runQuery
                              -- Prepare the query context and ship it off
                              let qs = QueryState { queryAsk                 = ask
                                                  , querySend                = send
-                                                 , queryRetrieveResponse    = getResponseFromSolver
+                                                 , queryRetrieveResponse    = getResponse
                                                  , queryConfig              = cfg
                                                  , queryTerminate           = cleanUp
                                                  , queryTimeOutValue        = Nothing
@@ -826,7 +841,7 @@ runSolver cfg ctx execPath opts pgm runQuery
                             finalize Nothing
                             return r
 
-      launchSolver `C.catch` (\(e :: C.SomeException) -> handleAsync e $ do ec <- abortSolver
+      launchSolver `C.catch` (\(e :: C.SomeException) -> handleAsync e $ do ec <- abort
                                                                             recordException (transcript cfg) (show e)
                                                                             finalize        (Just ec)
                                                                             C.throwIO e)
