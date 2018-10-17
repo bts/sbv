@@ -13,8 +13,9 @@
 
 module Data.SBV.Provers.Z3(z3) where
 
+import qualified Data.SBV.Processes.Local as Local
+
 import Data.SBV.Core.Data
-import Data.SBV.SMT.SMT
 
 -- | The description of the Z3 SMT solver.
 -- The default executable is @\"z3\"@, which must be in your path. You can use the @SBV_Z3@ environment variable to point to the executable on your system.
@@ -26,7 +27,7 @@ z3 = SMTSolver {
          , options      = modConfig ["-nw", "-in", "-smt2"]
          , envExecName  = "SBV_Z3"
          , envOptsName  = "SBV_Z3_OPTIONS"
-         , startProcess = startExecutableProcess
+         , startProcess = Local.start
          , capabilities = SolverCapabilities {
                                 supportsQuantifiers        = True
                               , supportsUninterpretedSorts = True

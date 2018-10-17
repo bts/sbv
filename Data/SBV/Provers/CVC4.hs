@@ -13,8 +13,9 @@
 
 module Data.SBV.Provers.CVC4(cvc4) where
 
+import qualified Data.SBV.Processes.Local as Local
+
 import Data.SBV.Core.Data
-import Data.SBV.SMT.SMT
 
 -- | The description of the CVC4 SMT solver
 -- The default executable is @\"cvc4\"@, which must be in your path. You can use the @SBV_CVC4@ environment variable to point to the executable on your system.
@@ -26,7 +27,7 @@ cvc4 = SMTSolver {
          , options      = const ["--lang", "smt", "--incremental", "--interactive", "--no-interactive-prompt"]
          , envExecName  = "SBV_CVC4"
          , envOptsName  = "SBV_CVC4_OPTIONS"
-         , startProcess = startExecutableProcess
+         , startProcess = Local.start
          , capabilities = SolverCapabilities {
                                 supportsQuantifiers        = True
                               , supportsUninterpretedSorts = True

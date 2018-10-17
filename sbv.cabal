@@ -144,6 +144,7 @@ Library
                   , Data.SBV.SMT.SMTLib2
                   , Data.SBV.SMT.SMTLibNames
                   , Data.SBV.SMT.Utils
+                  , Data.SBV.Processes.Local
                   , Data.SBV.Provers.Prover
                   , Data.SBV.Provers.Boolector
                   , Data.SBV.Provers.CVC4
@@ -152,6 +153,7 @@ Library
                   , Data.SBV.Provers.MathSAT
                   , Data.SBV.Provers.ABC
                   , Data.SBV.Utils.Boolean
+                  , Data.SBV.Utils.Exception
                   , Data.SBV.Utils.Numeric
                   , Data.SBV.Utils.TDiff
                   , Data.SBV.Utils.Lib

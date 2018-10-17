@@ -11,8 +11,9 @@
 
 module Data.SBV.Provers.ABC(abc) where
 
+import qualified Data.SBV.Processes.Local as Local
+
 import Data.SBV.Core.Data
-import Data.SBV.SMT.SMT
 
 -- | The description of abc. The default executable is @\"abc\"@,
 -- which must be in your path. You can use the @SBV_ABC@ environment
@@ -26,7 +27,7 @@ abc = SMTSolver {
          , options      = const ["-S", "%blast; &sweep -C 5000; &syn4; &cec -s -m -C 2000"]
          , envExecName  = "SBV_ABC"
          , envOptsName  = "SBV_ABC_OPTIONS"
-         , startProcess = startExecutableProcess
+         , startProcess = Local.start
          , capabilities = SolverCapabilities {
                                 supportsQuantifiers        = False
                               , supportsUninterpretedSorts = False

@@ -13,8 +13,9 @@
 
 module Data.SBV.Provers.Yices(yices) where
 
+import qualified Data.SBV.Processes.Local as Local
+
 import Data.SBV.Core.Data
-import Data.SBV.SMT.SMT
 
 -- | The description of the Yices SMT solver
 -- The default executable is @\"yices-smt2\"@, which must be in your path. You can use the @SBV_YICES@ environment variable to point to the executable on your system.
@@ -26,7 +27,7 @@ yices = SMTSolver {
          , options      = const ["--incremental"]
          , envExecName  = "SBV_YICES"
          , envOptsName  = "SBV_YICES_OPTIONS"
-         , startProcess = startExecutableProcess
+         , startProcess = Local.start
          , capabilities = SolverCapabilities {
                                 supportsQuantifiers        = False
                               , supportsUninterpretedSorts = True

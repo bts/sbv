@@ -11,8 +11,9 @@
 
 module Data.SBV.Provers.Boolector(boolector) where
 
+import qualified Data.SBV.Processes.Local as Local
+
 import Data.SBV.Core.Data
-import Data.SBV.SMT.SMT
 
 -- | The description of the Boolector SMT solver
 -- The default executable is @\"boolector\"@, which must be in your path. You can use the @SBV_BOOLECTOR@ environment variable to point to the executable on your system.
@@ -24,7 +25,7 @@ boolector = SMTSolver {
          , options      = const ["--smt2", "--smt2-model", "--no-exit-codes", "--incremental"]
          , envExecName  = "SBV_BOOLECTOR"
          , envOptsName  = "SBV_BOOLECTOR_OPTIONS"
-         , startProcess = startExecutableProcess
+         , startProcess = Local.start
          , capabilities = SolverCapabilities {
                                 supportsQuantifiers        = False
                               , supportsUninterpretedSorts = False

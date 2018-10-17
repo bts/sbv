@@ -24,7 +24,6 @@ module Data.SBV.SMT.SMT (
        , displayModels, showModel
 
        -- * Prover engine
-       , startExecutableProcess
        , startBackend
 
        -- * Results of various tasks
@@ -38,11 +37,10 @@ module Data.SBV.SMT.SMT (
 
 import qualified Control.Exception as C
 
-import Control.Concurrent (newEmptyMVar, takeMVar, putMVar, forkIO)
 import Control.DeepSeq    (NFData(..))
 import Control.Monad      (zipWithM)
 import Data.Char          (isSpace)
-import Data.Maybe         (fromMaybe, isJust)
+import Data.Maybe         (fromMaybe)
 import Data.Int           (Int8, Int16, Int32, Int64)
 import Data.List          (intercalate, isPrefixOf)
 import Data.Word          (Word8, Word16, Word32, Word64)
@@ -54,8 +52,6 @@ import Data.Time          (getZonedTime, defaultTimeLocale, formatTime, diffUTCT
 import System.Directory   (findExecutable)
 import System.Environment (getEnv)
 import System.Exit        (ExitCode(..))
-import System.IO          (hClose, hFlush, hPutStrLn, hGetContents, hGetLine)
-import System.Process     (runInteractiveProcess, waitForProcess, terminateProcess)
 
 import qualified Data.Map.Strict as M
 
@@ -65,6 +61,7 @@ import Data.SBV.Core.Symbolic (SolverProcess(..), State(..))
 
 import Data.SBV.SMT.Utils     (showTimeoutValue, alignPlain, debug, mergeSExpr, SBVException(..))
 
+import Data.SBV.Utils.Exception (handleAsync)
 import Data.SBV.Utils.PrettyNum
 import Data.SBV.Utils.Lib       (joinArgs, splitArgs)
 import Data.SBV.Utils.SExpr     (parenDeficit)
@@ -517,41 +514,6 @@ data SolverLine = SolverRegular   String  -- ^ All is well
                 | SolverTimeout   String  -- ^ Timeout expired
                 | SolverException String  -- ^ Something else went wrong
 
--- | Starts a 'SolverProcess' that finds the named executable on the PATH, and runs the solver locally.
-startExecutableProcess :: SMTConfig -> IO SolverProcess
-startExecutableProcess cfg = do
-    let smtSolver  = solver cfg
-        solverName = show (name smtSolver)
-        execName   = executable smtSolver
-        opts       = options smtSolver cfg
-
-    mbExecPath <- findExecutable execName
-    case mbExecPath of
-        Nothing   -> error $ unlines [ "Unable to locate executable for " ++ solverName
-                                     , "Executable specified: " ++ show execName
-                                     ]
-
-        Just path -> do (inh, outh, errh, pid) <- runInteractiveProcess path opts Nothing Nothing
-                        pure $ SolverProcess
-                            { writeLine = \s -> do hPutStrLn inh s
-                                                   hFlush inh
-                            , readLine  = hGetLine outh
-                            , close     = do hClose inh
-                                             outMVar <- newEmptyMVar
-                                             out <- hGetContents outh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return (show e)))
-                                             _ <- forkIO $ C.evaluate (length out) >> putMVar outMVar ()
-                                             err <- hGetContents errh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return (show e)))
-                                             _ <- forkIO $ C.evaluate (length err) >> putMVar outMVar ()
-                                             takeMVar outMVar
-                                             takeMVar outMVar
-                                             hClose outh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return ()))
-                                             hClose errh `C.catch`  (\(e :: C.SomeException) -> handleAsync e (return ()))
-                                             ex <- waitForProcess pid `C.catch` (\(e :: C.SomeException) -> handleAsync e (return (ExitFailure (-999))))
-                                             return (out, err, ex)
-                            , terminate = terminateProcess pid
-                            , await     = waitForProcess pid
-                            }
-
 -- | A variant of @readProcessWithExitCode@; except it deals with SBV continuations
 runSolver :: SMTConfig -> State -> String -> (State -> IO a) -> IO a
 runSolver cfg ctx pgm continuation
@@ -911,13 +873,3 @@ recordException (Just f) m = do ts <- show <$> getZonedTime
                         ++ [ ";;;"
                            , ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;"
                            ]
-
--- We should not be catching/processing asynchronous exceptions.
--- See http://github.com/LeventErkok/sbv/issues/410
-handleAsync :: C.SomeException -> IO a -> IO a
-handleAsync e cont
-  | isAsynchronous = C.throwIO e
-  | True           = cont
-  where -- Stealing this definition from the asynchronous exceptions package to reduce dependencies
-        isAsynchronous :: Bool
-        isAsynchronous = isJust (C.fromException e :: Maybe C.AsyncException) || isJust (C.fromException e :: Maybe C.SomeAsyncException)

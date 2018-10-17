@@ -13,9 +13,9 @@
 
 module Data.SBV.Provers.MathSAT(mathSAT) where
 
-import Data.SBV.Core.Data
-import Data.SBV.SMT.SMT
+import qualified Data.SBV.Processes.Local as Local
 
+import Data.SBV.Core.Data
 import Data.SBV.Control.Types
 
 -- | The description of the MathSAT SMT solver
@@ -28,7 +28,7 @@ mathSAT = SMTSolver {
          , options      = modConfig ["-input=smt2", "-theory.fp.minmax_zero_mode=4"]
          , envExecName  = "SBV_MATHSAT"
          , envOptsName  = "SBV_MATHSAT_OPTIONS"
-         , startProcess = startExecutableProcess
+         , startProcess = Local.start
          , capabilities = SolverCapabilities {
                                 supportsQuantifiers        = True
                               , supportsUninterpretedSorts = True
