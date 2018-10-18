@@ -52,7 +52,7 @@ Library
                   , ghc, QuickCheck, template-haskell
                   , array, async, containers, deepseq, directory, filepath, time
                   , pretty, process, mtl, random, syb, reinterpret-cast
-                  , generic-deriving
+                  , generic-deriving, websockets, network, bytestring, safe
   Exposed-modules : Data.SBV
                   , Data.SBV.Control
                   , Data.SBV.Dynamic
@@ -145,6 +145,8 @@ Library
                   , Data.SBV.SMT.SMTLibNames
                   , Data.SBV.SMT.Utils
                   , Data.SBV.Processes.Local
+                  , Data.SBV.Processes.WebSocket
+                  , Data.SBV.Processes.WebSocket.Client
                   , Data.SBV.Provers.Prover
                   , Data.SBV.Provers.Boolector
                   , Data.SBV.Provers.CVC4
