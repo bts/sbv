@@ -146,6 +146,7 @@ Library
                   , Data.SBV.SMT.Utils
                   , Data.SBV.Processes.Local
                   , Data.SBV.Processes.WebSocket
+                  , Data.SBV.Processes.WebSocket.Types
                   , Data.SBV.Processes.WebSocket.Client
                   , Data.SBV.Provers.Prover
                   , Data.SBV.Provers.Boolector

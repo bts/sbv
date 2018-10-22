@@ -13,55 +13,24 @@ module Data.SBV.Processes.WebSocket.Client
   ( startClient
   ) where
 
-import qualified Control.Exception          as C
-import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Network.WebSockets         as WS
+import qualified Control.Exception  as C
+import qualified Network.WebSockets as WS
 
 import Control.Concurrent      (forkFinally, forkIO, killThread)
 import Control.Concurrent.MVar (MVar, modifyMVar, modifyMVar_, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar, tryPutMVar)
 import Control.Monad           (forever, void)
 import Control.Monad.Trans     (liftIO)
 import Network.Socket          (withSocketsDo)
-import Safe                    (readMay)
 import System.Exit             (ExitCode(..))
 
 import Data.SBV.Core.Symbolic (SolverProcess(..), SMTConfig)
 import Data.SBV.SMT.Utils     (SBVException(..))
 
-data Receive = StdOut String
-             | StdErr String
-             | Exit ExitCode
-             | Unexpected String
+import Data.SBV.Processes.WebSocket.Types
 
-data Send = StdIn String
-          | CloseIn
 
 data Termination = ExitedCleanly String ExitCode
                  | Aborted C.SomeException
-
-instance WS.WebSocketsData Receive where
-  fromDataMessage (WS.Text lbs _) = WS.fromLazyByteString lbs
-  fromDataMessage (WS.Binary lbs) = WS.fromLazyByteString lbs
-
-  fromLazyByteString lbs = case LBS.unpack lbs of
-                               'o':'u':'t':',':body     -> StdOut body
-                               'e':'r':'r':',':body     -> StdErr body
-                               'e':'x':'i':'t':',':body -> case readMay body of
-                                                               Just 0    -> Exit ExitSuccess
-                                                               Just code -> Exit $ ExitFailure code
-                                                               Nothing   -> Exit $ ExitFailure (-50)
-                               unexpected               -> Unexpected unexpected
-
-  toLazyByteString _ = LBS.empty -- NB: we never encode "received" messages
-
-instance WS.WebSocketsData Send where
-  fromDataMessage (WS.Text lbs _) = WS.fromLazyByteString lbs
-  fromDataMessage (WS.Binary lbs) = WS.fromLazyByteString lbs
-
-  fromLazyByteString _ = StdIn "" -- NB: we never decode "sent" messages
-
-  toLazyByteString (StdIn body) = LBS.pack $ "in," ++ body
-  toLazyByteString CloseIn      = LBS.pack "close,"
 
 startClient :: SMTConfig -> String -> Int -> String -> IO SolverProcess
 startClient cfg host port path = do
@@ -76,16 +45,16 @@ startClient cfg host port path = do
                   let receiveData = do
                           msg <- WS.receiveData conn
                           case msg of
-                              StdOut line        -> do liftIO $ putMVar outputBuffer line
-                                                       receiveData
+                              StdOut line                  -> do liftIO $ putMVar outputBuffer line
+                                                                 receiveData
 
-                              StdErr line        -> do liftIO $ modifyMVar_ accumulatedErr $ pure . (line :)
-                                                       receiveData
+                              StdErr line                  -> do liftIO $ modifyMVar_ accumulatedErr $ pure . (line :)
+                                                                 receiveData
 
-                              Exit code          -> do err <- modifyMVar accumulatedErr $ \acc -> pure ([], acc)
-                                                       putMVar termination $ ExitedCleanly (unlines (reverse err)) code
+                              Exit code                    -> do err <- modifyMVar accumulatedErr $ \acc -> pure ([], acc)
+                                                                 putMVar termination $ ExitedCleanly (unlines (reverse err)) code
 
-                              Unexpected payload -> C.throwIO SBVException { sbvExceptionDescription = "WebSocket client received unexpected data"
+                              UnexpectedFromServer payload -> C.throwIO SBVException { sbvExceptionDescription = "WebSocket client received unexpected data from server"
                                                                            , sbvExceptionSent        = Nothing
                                                                            , sbvExceptionExpected    = Nothing
                                                                            , sbvExceptionReceived    = Just payload
