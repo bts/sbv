@@ -53,6 +53,7 @@ Library
                   , array, async, containers, deepseq, directory, filepath, time
                   , pretty, process, mtl, random, syb, reinterpret-cast
                   , generic-deriving, websockets, network, bytestring, safe
+                  , wai, wai-websockets, http-types
   Exposed-modules : Data.SBV
                   , Data.SBV.Control
                   , Data.SBV.Dynamic
@@ -148,6 +149,7 @@ Library
                   , Data.SBV.Processes.WebSocket
                   , Data.SBV.Processes.WebSocket.Types
                   , Data.SBV.Processes.WebSocket.Client
+                  , Data.SBV.Processes.WebSocket.Server
                   , Data.SBV.Provers.Prover
                   , Data.SBV.Provers.Boolector
                   , Data.SBV.Provers.CVC4

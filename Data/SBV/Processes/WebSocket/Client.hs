@@ -34,6 +34,7 @@ data Termination = ExitedCleanly String ExitCode
 
 startClient :: SMTConfig -> String -> Int -> String -> IO SolverProcess
 startClient cfg host port path = do
+    readRequest    <- newEmptyMVar :: IO (MVar ())          -- fulfilled many times
     closeRequest   <- newEmptyMVar :: IO (MVar ())          -- only fulfilled once
     termination    <- newEmptyMVar :: IO (MVar Termination) -- only fulfilled once
     inputBuffer    <- newEmptyMVar :: IO (MVar String)      -- single-place buffer
@@ -45,32 +46,36 @@ startClient cfg host port path = do
                   let receiveData = do
                           msg <- WS.receiveData conn
                           case msg of
-                              StdOut line                  -> do liftIO $ putMVar outputBuffer line
+                              WriteOut line                -> do liftIO $ putMVar outputBuffer line
                                                                  receiveData
 
-                              StdErr line                  -> do liftIO $ modifyMVar_ accumulatedErr $ pure . (line :)
+                              WriteErr line                -> do liftIO $ modifyMVar_ accumulatedErr $ pure . (line :)
                                                                  receiveData
 
                               Exit code                    -> do err <- modifyMVar accumulatedErr $ \acc -> pure ([], acc)
                                                                  putMVar termination $ ExitedCleanly (unlines (reverse err)) code
 
                               UnexpectedFromServer payload -> C.throwIO SBVException { sbvExceptionDescription = "WebSocket client received unexpected data from server"
-                                                                           , sbvExceptionSent        = Nothing
-                                                                           , sbvExceptionExpected    = Nothing
-                                                                           , sbvExceptionReceived    = Just payload
-                                                                           , sbvExceptionStdOut      = Nothing
-                                                                           , sbvExceptionStdErr      = Nothing
-                                                                           , sbvExceptionExitCode    = Nothing
-                                                                           , sbvExceptionConfig      = cfg
-                                                                           , sbvExceptionReason      = Nothing
-                                                                           , sbvExceptionHint        = Nothing
-                                                                           }
+                                                                                     , sbvExceptionSent        = Nothing
+                                                                                     , sbvExceptionExpected    = Nothing
+                                                                                     , sbvExceptionReceived    = Just payload
+                                                                                     , sbvExceptionStdOut      = Nothing
+                                                                                     , sbvExceptionStdErr      = Nothing
+                                                                                     , sbvExceptionExitCode    = Nothing
+                                                                                     , sbvExceptionConfig      = cfg
+                                                                                     , sbvExceptionReason      = Nothing
+                                                                                     , sbvExceptionHint        = Nothing
+                                                                                     }
 
                   _ <- forkIO receiveData
 
                   void $ forkIO $ forever $ do
-                      line <- readMVar inputBuffer
-                      WS.sendTextData conn $ StdIn line
+                      line <- takeMVar inputBuffer
+                      WS.sendTextData conn $ WriteIn line
+
+                  void $ forkIO $ forever $ do
+                      () <- takeMVar readRequest
+                      WS.sendTextData conn ReadOut
 
                   void $ readMVar closeRequest
                   WS.sendTextData conn $ CloseIn
@@ -99,7 +104,10 @@ startClient cfg host port path = do
 
     pure $ SolverProcess
         { writeLine = putMVar inputBuffer
-        , readLine  = takeMVar outputBuffer
+
+        , readLine  = do putMVar readRequest ()
+                         takeMVar outputBuffer
+
         , close     = do res <- tryPutMVar closeRequest ()
                          case res of
                            False -> C.throwIO SBVException { sbvExceptionDescription = "Tried to close solver twice"

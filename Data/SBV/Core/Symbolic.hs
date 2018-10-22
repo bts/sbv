@@ -1506,7 +1506,7 @@ data SolverProcess = SolverProcess {
          writeLine :: String -> IO ()               -- ^ Sends a line of input to the process
        , readLine  :: IO String                     -- ^ Reads a line of output from the process
        , close     :: IO (String, String, ExitCode) -- ^ Closes the process, returning remaining data from its output, and the entirety of its error stream
-       , terminate :: IO ()                         -- ^ Forcefully terminates the process
+       , terminate :: IO ()                         -- ^ Forcefully terminates the process. Idempotent.
        , await     :: IO ExitCode                   -- ^ Waits for the process to terminate and returns its exit code
        }
 

@@ -17,31 +17,36 @@ import qualified Network.WebSockets         as WS
 import Safe        (readMay)
 import System.Exit (ExitCode(..))
 
-data ToClient = StdOut String
-              | StdErr String
+data ToClient = WriteOut String
+              | WriteErr String
               | Exit ExitCode
               | UnexpectedFromServer String
+    deriving Show
 
-data ToServer = StdIn String
+data ToServer = ReadOut
+              | WriteIn String
               | CloseIn
               | UnexpectedFromClient String
+    deriving Show
 
 instance WS.WebSocketsData ToClient where
   fromDataMessage (WS.Text lbs _) = WS.fromLazyByteString lbs
   fromDataMessage (WS.Binary lbs) = WS.fromLazyByteString lbs
 
   fromLazyByteString lbs = case LBS.unpack lbs of
-                               'o':'u':'t':',':body     -> StdOut body
-                               'e':'r':'r':',':body     -> StdErr body
+                               'o':'u':'t':',':body     -> WriteOut body
+                               'e':'r':'r':',':body     -> WriteErr body
                                'e':'x':'i':'t':',':body -> case readMay body of
                                                                Just 0    -> Exit ExitSuccess
                                                                Just code -> Exit $ ExitFailure code
                                                                Nothing   -> Exit $ ExitFailure (-50)
                                unexpected               -> UnexpectedFromServer unexpected
 
-  toLazyByteString (StdOut body)            = LBS.pack $ "out," ++ body
-  toLazyByteString (StdErr body)            = LBS.pack $ "err," ++ body
-  toLazyByteString (Exit code)              = LBS.pack $ "exit," ++ show code
+  toLazyByteString (WriteOut body)          = LBS.pack $ "out," ++ body
+  toLazyByteString (WriteErr body)          = LBS.pack $ "err," ++ body
+  toLazyByteString (Exit code)              = LBS.pack $ "exit," ++ case code of
+                                                                      ExitFailure num -> show num
+                                                                      ExitSuccess     -> "0"
   toLazyByteString (UnexpectedFromServer _) = error "impossible: encoding UnexpectedFromServer"
 
 instance WS.WebSocketsData ToServer where
@@ -49,11 +54,13 @@ instance WS.WebSocketsData ToServer where
   fromDataMessage (WS.Binary lbs) = WS.fromLazyByteString lbs
 
   fromLazyByteString lbs = case LBS.unpack lbs of
-                               'i':'n':',':body -> StdIn body
+                               "read,"          -> ReadOut
+                               'i':'n':',':body -> WriteIn body
                                "close,"         -> CloseIn
                                unexpected       -> UnexpectedFromClient unexpected
 
-  toLazyByteString (StdIn body)             = LBS.pack $ "in," ++ body
+  toLazyByteString ReadOut                  = LBS.pack "read,"
+  toLazyByteString (WriteIn body)           = LBS.pack $ "in," ++ body
   toLazyByteString CloseIn                  = LBS.pack "close,"
   toLazyByteString (UnexpectedFromClient _) = error "impossible: encoding UnexpectedFromClient"
 

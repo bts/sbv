@@ -14,3 +14,4 @@ module Data.SBV.Processes.WebSocket
   ) where
 
 import Data.SBV.Processes.WebSocket.Client as X
+import Data.SBV.Processes.WebSocket.Server as X
