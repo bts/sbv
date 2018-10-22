@@ -63,8 +63,8 @@ instance WS.WebSocketsData Send where
   toLazyByteString (StdIn body) = LBS.pack $ "in," ++ body
   toLazyByteString CloseIn      = LBS.pack "close,"
 
-startClient :: SMTConfig -> String -> Int -> String -> Int -> IO SolverProcess
-startClient cfg host port path pingTimeout = do
+startClient :: SMTConfig -> String -> Int -> String -> IO SolverProcess
+startClient cfg host port path = do
     closeRequest   <- newEmptyMVar :: IO (MVar ())          -- only fulfilled once
     termination    <- newEmptyMVar :: IO (MVar Termination) -- only fulfilled once
     inputBuffer    <- newEmptyMVar :: IO (MVar String)      -- single-place buffer
