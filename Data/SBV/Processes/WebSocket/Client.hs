@@ -9,6 +9,8 @@
 -- Client side of WebSocket-based solver process
 -----------------------------------------------------------------------------
 
+{-# LANGUAGE LambdaCase #-}
+
 module Data.SBV.Processes.WebSocket.Client
   ( startClient
   ) where
@@ -98,9 +100,9 @@ startClient cfg host port path = do
                                                                , sbvExceptionHint        = Nothing
                                                                }
 
-    tid <- forkFinally run $ \eResult -> case eResult of
-                                           Left e -> void $ tryPutMVar termination $ Aborted e
-                                           Right _ -> pure ()
+    tid <- forkFinally run $ \case
+               Left e  -> void $ tryPutMVar termination $ Aborted e
+               Right _ -> pure ()
 
     pure $ SolverProcess
         { writeLine = putMVar inputBuffer
@@ -110,18 +112,18 @@ startClient cfg host port path = do
 
         , close     = do res <- tryPutMVar closeRequest ()
                          case res of
-                           False -> C.throwIO SBVException { sbvExceptionDescription = "Tried to close solver twice"
-                                                           , sbvExceptionSent        = Nothing
-                                                           , sbvExceptionExpected    = Nothing
-                                                           , sbvExceptionReceived    = Nothing
-                                                           , sbvExceptionStdOut      = Nothing
-                                                           , sbvExceptionStdErr      = Nothing
-                                                           , sbvExceptionExitCode    = Nothing
-                                                           , sbvExceptionConfig      = cfg
-                                                           , sbvExceptionReason      = Nothing
-                                                           , sbvExceptionHint        = Nothing
-                                                           }
-                           True  -> awaitCleanExit
+                             False -> C.throwIO SBVException { sbvExceptionDescription = "Tried to close solver twice"
+                                                             , sbvExceptionSent        = Nothing
+                                                             , sbvExceptionExpected    = Nothing
+                                                             , sbvExceptionReceived    = Nothing
+                                                             , sbvExceptionStdOut      = Nothing
+                                                             , sbvExceptionStdErr      = Nothing
+                                                             , sbvExceptionExitCode    = Nothing
+                                                             , sbvExceptionConfig      = cfg
+                                                             , sbvExceptionReason      = Nothing
+                                                             , sbvExceptionHint        = Nothing
+                                                             }
+                             True  -> awaitCleanExit
         , terminate = killThread tid
         , await     = (\(_,_,code) -> code) <$> awaitCleanExit
         }
