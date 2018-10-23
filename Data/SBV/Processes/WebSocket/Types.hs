@@ -34,13 +34,13 @@ instance WS.WebSocketsData ToClient where
   fromDataMessage (WS.Binary lbs) = WS.fromLazyByteString lbs
 
   fromLazyByteString lbs = case LBS.unpack lbs of
-                               'o':'u':'t':',':body     -> WriteOut body
-                               'e':'r':'r':',':body     -> WriteErr body
-                               'e':'x':'i':'t':',':body -> case readMay body of
-                                                               Just 0    -> Exit ExitSuccess
-                                                               Just code -> Exit $ ExitFailure code
-                                                               Nothing   -> Exit $ ExitFailure (-50)
-                               unexpected               -> UnexpectedFromServer unexpected
+                               'o':'u':'t':',':body           -> WriteOut body
+                               'e':'r':'r':',':body           -> WriteErr body
+                               msg@('e':'x':'i':'t':',':body) -> case readMay body of
+                                                                     Just 0    -> Exit ExitSuccess
+                                                                     Just code -> Exit $ ExitFailure code
+                                                                     Nothing   -> UnexpectedFromServer msg
+                               unexpected                     -> UnexpectedFromServer unexpected
 
   toLazyByteString (WriteOut body)          = LBS.pack $ "out," ++ body
   toLazyByteString (WriteErr body)          = LBS.pack $ "err," ++ body
