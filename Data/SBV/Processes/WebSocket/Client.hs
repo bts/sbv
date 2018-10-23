@@ -34,8 +34,8 @@ import Data.SBV.Processes.WebSocket.Types
 data Termination = ExitedCleanly String ExitCode
                  | Aborted C.SomeException
 
-startClient :: SMTConfig -> String -> Int -> String -> IO SolverProcess
-startClient cfg host port path = do
+startClient :: String -> Int -> String -> SMTConfig -> IO SolverProcess
+startClient host port path cfg = do
     readRequest    <- newEmptyMVar :: IO (MVar ())          -- fulfilled many times
     closeRequest   <- newEmptyMVar :: IO (MVar ())          -- only fulfilled once
     termination    <- newEmptyMVar :: IO (MVar Termination) -- only fulfilled once
