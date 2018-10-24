@@ -15,13 +15,30 @@ module Data.SBV.Processes.WebSocket.Server
   ( runServer
   , mkWaiApp
   , mkWebSocketApp
+
+  , test -- TODO: move into test code
+
   ) where
+
+--
+-- TODO
+--
+-- [ ] commit pending stuff
+-- [ ] add tests for serverside-only WS interactions.
+--        decide whether to use dummy or real z3 backend
+-- [ ] potentially consolidate WriteErr and Exit (might simplify possible reuse for ghcjs)
+-- [ ] write ghcjs SolverProcess
+-- [ ] test ghcjs SolverProcess
+-- [ ] move stuff into new package(s)
+--
 
 import qualified Control.Exception              as C
 import qualified Network.HTTP.Types             as Web
 import qualified Network.Wai                    as Wai
 import qualified Network.Wai.Handler.WebSockets as WaiWS
 import qualified Network.WebSockets             as WS
+import qualified Data.SBV.Processes.Local       as LocalProcess
+import qualified Data.SBV.Provers.Prover        as Prover
 
 import Control.Concurrent (MVar, newMVar, modifyMVar, modifyMVar_)
 import Control.Exception  (finally)
@@ -30,6 +47,12 @@ import Data.SBV.Core.Symbolic (SolverProcess(..), SMTConfig)
 import Data.SBV.SMT.Utils     (SBVException(..))
 
 import Data.SBV.Processes.WebSocket.Types
+
+-- TODO: move this to test code
+test :: IO ()
+test = runServer "127.0.0.1" 3000 10 cfg =<< LocalProcess.start cfg
+  where
+    cfg = Prover.z3
 
 -- | Convenience function for starting a local server
 runServer :: String -> Int -> Int -> SMTConfig -> SolverProcess -> IO ()

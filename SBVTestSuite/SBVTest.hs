@@ -131,23 +131,24 @@ main = do (testEnv, testPercentage) <- getTestEnvironment
 
 -- | The following tests take too long/too burdensome for remote tests, so we run only a percentage of them
 heavyTests :: TestTree
-heavyTests = testGroup "SBVHeavyTests" [TestSuite.Basics.ArithSolver.tests]
+heavyTests = testGroup "SBVHeavyTests" [--TestSuite.Basics.ArithSolver.tests
+                                       ]
 
 -- | The following tests can only be run locally
 localOnlyTests :: TestTree
 localOnlyTests = testGroup "SBVLocalOnlyTests" [
-                     TestSuite.Basics.Exceptions.testsLocal
-                   , TestSuite.Queries.BasicQuery.tests
-                   , TestSuite.Queries.BadOption.tests
-                   , TestSuite.Queries.Int_ABC.tests
-                   , TestSuite.Queries.Int_Boolector.tests
-                   , TestSuite.Queries.Int_CVC4.tests
-                   , TestSuite.Queries.Int_Mathsat.tests
-                   , TestSuite.Queries.Int_Yices.tests
-                   -- quick-check tests take a long time, so just run them locally:
-                   , TestSuite.QuickCheck.QC.tests
-                   -- interpolant tests require MathSAT, run locally:
-                   , TestSuite.Queries.Interpolants.tests
+                   --   TestSuite.Basics.Exceptions.testsLocal
+                   -- , TestSuite.Queries.BasicQuery.tests
+                   -- , TestSuite.Queries.BadOption.tests
+                   -- , TestSuite.Queries.Int_ABC.tests
+                   -- , TestSuite.Queries.Int_Boolector.tests
+                   -- , TestSuite.Queries.Int_CVC4.tests
+                   -- , TestSuite.Queries.Int_Mathsat.tests
+                   -- , TestSuite.Queries.Int_Yices.tests
+                   -- -- quick-check tests take a long time, so just run them locally:
+                   -- , TestSuite.QuickCheck.QC.tests
+                   -- -- interpolant tests require MathSAT, run locally:
+                   -- , TestSuite.Queries.Interpolants.tests
                    ]
 
 -- | Remaining tests
@@ -158,73 +159,73 @@ otherTests = testGroup "SBVTests" [
                , TestSuite.Arrays.Query.tests
                , TestSuite.Basics.AllSat.tests
                , TestSuite.Basics.ArithNoSolver.tests
-               , TestSuite.Basics.Assert.tests
-               , TestSuite.Basics.BasicTests.tests
-               , TestSuite.Basics.Exceptions.testsRemote
-               , TestSuite.Basics.GenBenchmark.tests
-               , TestSuite.Basics.Higher.tests
-               , TestSuite.Basics.Index.tests
-               , TestSuite.Basics.IteTest.tests
-               , TestSuite.Basics.List.tests
-               , TestSuite.Basics.ProofTests.tests
-               , TestSuite.Basics.PseudoBoolean.tests
-               , TestSuite.Basics.QRem.tests
-               , TestSuite.Basics.Quantifiers.tests
-               , TestSuite.Basics.Recursive.tests
-               , TestSuite.Basics.SmallShifts.tests
-               , TestSuite.Basics.SquashReals.tests
-               , TestSuite.Basics.String.tests
-               , TestSuite.Basics.TOut.tests
-               , TestSuite.BitPrecise.BitTricks.tests
-               , TestSuite.BitPrecise.Legato.tests
-               , TestSuite.BitPrecise.MergeSort.tests
-               , TestSuite.BitPrecise.PrefixSum.tests
-               , TestSuite.CodeGeneration.AddSub.tests
-               , TestSuite.CodeGeneration.CgTests.tests
-               , TestSuite.CodeGeneration.CRC_USB5.tests
-               , TestSuite.CodeGeneration.Fibonacci.tests
-               , TestSuite.CodeGeneration.Floats.tests
-               , TestSuite.CodeGeneration.GCD.tests
-               , TestSuite.CodeGeneration.PopulationCount.tests
-               , TestSuite.CodeGeneration.Uninterpreted.tests
-               , TestSuite.CRC.CCITT.tests
-               , TestSuite.CRC.CCITT_Unidir.tests
-               , TestSuite.CRC.GenPoly.tests
-               , TestSuite.CRC.Parity.tests
-               , TestSuite.CRC.USB5.tests
-               , TestSuite.Crypto.AES.tests
-               , TestSuite.Crypto.RC4.tests
-               , TestSuite.Existentials.CRCPolynomial.tests
-               , TestSuite.GenTest.GenTests.tests
-               , TestSuite.Optimization.AssertWithPenalty.tests
-               , TestSuite.Optimization.Basics.tests
-               , TestSuite.Optimization.Combined.tests
-               , TestSuite.Optimization.ExtensionField.tests
-               , TestSuite.Optimization.Quantified.tests
-               , TestSuite.Optimization.Reals.tests
-               , TestSuite.Optimization.NoOpt.tests
-               , TestSuite.Overflows.Arithmetic.tests
-               , TestSuite.Overflows.Casts.tests
-               , TestSuite.Polynomials.Polynomials.tests
-               , TestSuite.Puzzles.Coins.tests
-               , TestSuite.Puzzles.Counts.tests
-               , TestSuite.Puzzles.DogCatMouse.tests
-               , TestSuite.Puzzles.Euler185.tests
-               , TestSuite.Puzzles.MagicSquare.tests
-               , TestSuite.Puzzles.NQueens.tests
-               , TestSuite.Puzzles.PowerSet.tests
-               , TestSuite.Puzzles.Sudoku.tests
-               , TestSuite.Puzzles.Temperature.tests
-               , TestSuite.Puzzles.U2Bridge.tests
-               , TestSuite.Queries.Enums.tests
-               , TestSuite.Queries.FreshVars.tests
-               , TestSuite.Queries.Int_Z3.tests
-               , TestSuite.Queries.Lists.tests
-               , TestSuite.Queries.Strings.tests
-               , TestSuite.Queries.Uninterpreted.tests
-               , TestSuite.Uninterpreted.AUF.tests
-               , TestSuite.Uninterpreted.Axioms.tests
-               , TestSuite.Uninterpreted.Function.tests
-               , TestSuite.Uninterpreted.Sort.tests
-               , TestSuite.Uninterpreted.Uninterpreted.tests
+               -- , TestSuite.Basics.Assert.tests
+               -- , TestSuite.Basics.BasicTests.tests
+               -- , TestSuite.Basics.Exceptions.testsRemote
+               -- , TestSuite.Basics.GenBenchmark.tests
+               -- , TestSuite.Basics.Higher.tests
+               -- , TestSuite.Basics.Index.tests
+               -- , TestSuite.Basics.IteTest.tests
+               -- , TestSuite.Basics.List.tests
+               -- , TestSuite.Basics.ProofTests.tests
+               -- , TestSuite.Basics.PseudoBoolean.tests
+               -- , TestSuite.Basics.QRem.tests
+               -- , TestSuite.Basics.Quantifiers.tests
+               -- , TestSuite.Basics.Recursive.tests
+               -- , TestSuite.Basics.SmallShifts.tests
+               -- , TestSuite.Basics.SquashReals.tests
+               -- , TestSuite.Basics.String.tests
+               -- , TestSuite.Basics.TOut.tests
+               -- , TestSuite.BitPrecise.BitTricks.tests
+               -- , TestSuite.BitPrecise.Legato.tests
+               -- , TestSuite.BitPrecise.MergeSort.tests
+               -- , TestSuite.BitPrecise.PrefixSum.tests
+               -- , TestSuite.CodeGeneration.AddSub.tests
+               -- , TestSuite.CodeGeneration.CgTests.tests
+               -- , TestSuite.CodeGeneration.CRC_USB5.tests
+               -- , TestSuite.CodeGeneration.Fibonacci.tests
+               -- , TestSuite.CodeGeneration.Floats.tests
+               -- , TestSuite.CodeGeneration.GCD.tests
+               -- , TestSuite.CodeGeneration.PopulationCount.tests
+               -- , TestSuite.CodeGeneration.Uninterpreted.tests
+               -- , TestSuite.CRC.CCITT.tests
+               -- , TestSuite.CRC.CCITT_Unidir.tests
+               -- , TestSuite.CRC.GenPoly.tests
+               -- , TestSuite.CRC.Parity.tests
+               -- , TestSuite.CRC.USB5.tests
+               -- , TestSuite.Crypto.AES.tests
+               -- , TestSuite.Crypto.RC4.tests
+               -- , TestSuite.Existentials.CRCPolynomial.tests
+               -- , TestSuite.GenTest.GenTests.tests
+               -- , TestSuite.Optimization.AssertWithPenalty.tests
+               -- , TestSuite.Optimization.Basics.tests
+               -- , TestSuite.Optimization.Combined.tests
+               -- , TestSuite.Optimization.ExtensionField.tests
+               -- , TestSuite.Optimization.Quantified.tests
+               -- , TestSuite.Optimization.Reals.tests
+               -- , TestSuite.Optimization.NoOpt.tests
+               -- , TestSuite.Overflows.Arithmetic.tests
+               -- , TestSuite.Overflows.Casts.tests
+               -- , TestSuite.Polynomials.Polynomials.tests
+               -- , TestSuite.Puzzles.Coins.tests
+               -- , TestSuite.Puzzles.Counts.tests
+               -- , TestSuite.Puzzles.DogCatMouse.tests
+               -- , TestSuite.Puzzles.Euler185.tests
+               -- , TestSuite.Puzzles.MagicSquare.tests
+               -- , TestSuite.Puzzles.NQueens.tests
+               -- , TestSuite.Puzzles.PowerSet.tests
+               -- , TestSuite.Puzzles.Sudoku.tests
+               -- , TestSuite.Puzzles.Temperature.tests
+               -- , TestSuite.Puzzles.U2Bridge.tests
+               -- , TestSuite.Queries.Enums.tests
+               -- , TestSuite.Queries.FreshVars.tests
+               -- , TestSuite.Queries.Int_Z3.tests
+               -- , TestSuite.Queries.Lists.tests
+               -- , TestSuite.Queries.Strings.tests
+               -- , TestSuite.Queries.Uninterpreted.tests
+               -- , TestSuite.Uninterpreted.AUF.tests
+               -- , TestSuite.Uninterpreted.Axioms.tests
+               -- , TestSuite.Uninterpreted.Function.tests
+               -- , TestSuite.Uninterpreted.Sort.tests
+               -- , TestSuite.Uninterpreted.Uninterpreted.tests
                ]

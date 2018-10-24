@@ -1430,7 +1430,7 @@ data RoundingMode = RoundNearestTiesToEven  -- ^ Round to nearest representable 
 instance HasKind RoundingMode
 
 -- | Solver configuration. See also 'Data.SBV.z3', 'Data.SBV.yices', 'Data.SBV.cvc4', 'Data.SBV.boolector', 'Data.SBV.mathSAT', etc.
--- which are instantiations of this type for those solvers, with reasonable defaults. In particular, custom configuration can be 
+-- which are instantiations of this type for those solvers, with reasonable defaults. In particular, custom configuration can be
 -- created by varying those values. (Such as @z3{verbose=True}@.)
 --
 -- Most fields are self explanatory. The notion of precision for printing algebraic reals stems from the fact that such values does

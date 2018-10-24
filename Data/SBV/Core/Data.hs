@@ -243,7 +243,7 @@ sRTZ :: SRoundingMode
 sRTZ = sRoundTowardZero
 
 -- | A 'Show' instance is not particularly "desirable," when the value is symbolic,
--- but we do need this instance as otherwise we cannot simply evaluate Haskell functions 
+-- but we do need this instance as otherwise we cannot simply evaluate Haskell functions
 -- that return symbolic values and have their constant values printed easily!
 instance Show (SBV a) where
   show (SBV sv) = show sv
@@ -477,7 +477,7 @@ instance (Random a, SymWord a) => Random (SBV a) where
 --      'SFunArray', SBV only generates code for individual elements and the array itself never
 --      shows up in the resulting SMTLib program. This puts more onus on the SBV side and might
 --      have some performance impacts, but it might generate problems that are easier for the SMT
---      solvers to handle. 
+--      solvers to handle.
 --
 -- As a rule of thumb, try 'SArray' first. These should generate compact code. However, if
 -- the backend solver has hard time solving the generated problems, switch to

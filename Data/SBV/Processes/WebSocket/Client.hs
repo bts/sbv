@@ -13,10 +13,14 @@
 
 module Data.SBV.Processes.WebSocket.Client
   ( startClient
+
+  , netz3 -- NOTE: don't commit
+
   ) where
 
-import qualified Control.Exception  as C
-import qualified Network.WebSockets as WS
+import qualified Control.Exception       as C
+import qualified Network.WebSockets      as WS
+import qualified Data.SBV.Provers.Prover as Prover
 
 import Control.Concurrent      (forkFinally, forkIO, killThread)
 import Control.Concurrent.MVar (MVar, modifyMVar, modifyMVar_, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar, tryPutMVar)
@@ -30,6 +34,16 @@ import Data.SBV.SMT.Utils     (SBVException(..))
 
 import Data.SBV.Processes.WebSocket.Types
 
+--
+-- TODO: document stuff
+--
+
+--
+-- TODO: add support for websockets from GHCJS
+--
+
+netz3 :: SMTConfig
+netz3 = Prover.z3 { Prover.solver = (Prover.solver Prover.z3) { Prover.startProcess = startClient "localhost" 3000 "/" } }
 
 data Termination = ExitedCleanly String ExitCode
                  | Aborted C.SomeException

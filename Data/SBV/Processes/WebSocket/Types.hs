@@ -18,8 +18,13 @@ import Safe        (readMay)
 import System.Exit (ExitCode(..))
 
 data ToClient = WriteOut String
+
+              --
+              -- TODO: combine? would involve making "exit" parsing more involved.
+              --
               | WriteErr String
               | Exit ExitCode
+
               | UnexpectedFromServer String
     deriving Show
 
