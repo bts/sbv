@@ -36,7 +36,7 @@ module Data.SBV.Control.Utils (
      ) where
 
 import Data.Maybe (isJust)
-import Data.List  (sortBy, sortOn, elemIndex, partition, groupBy, tails, intercalate)
+import Data.List  (sortBy, sortOn, elemIndex, partition, groupBy, tails)
 
 import Data.Char     (isPunctuation, isSpace, chr, ord)
 import Data.Function (on)
@@ -789,21 +789,21 @@ executeQuery queryContext (QueryT userQuery) = do
                         (userInps, _) <- readIORef (rinps st)
                         let badInps = reverse [n | (ALL, (_, n)) <- userInps]
                         case badInps of
-                          [] -> return ()
-                          _  -> let plu | length badInps > 1 = "s require"
-                                        | True               = " requires"
-                                in error $ unlines [ ""
-                                                   , "*** Data.SBV: Unsupported query call in the presence of quantified inputs."
-                                                   , "***"
-                                                   , "*** The following variable" ++ plu ++ " explicit quantification: "
-                                                   , "***"
-                                                   , "***    " ++ intercalate ", " badInps
-                                                   , "***"
-                                                   , "*** While quantification and queries can co-exist in principle, SBV currently"
-                                                   , "*** does not support this scenario. Avoid using quantifiers with user queries"
-                                                   , "*** if possible. Please do get in touch if your use case does require such"
-                                                   , "*** a feature to see how we can accommodate such scenarios."
-                                                   ]
+                          _ -> return ()
+                          -- _  -> let plu | length badInps > 1 = "s require"
+                          --               | True               = " requires"
+                          --       in error $ unlines [ ""
+                          --                          , "*** Data.SBV: Unsupported query call in the presence of quantified inputs."
+                          --                          , "***"
+                          --                          , "*** The following variable" ++ plu ++ " explicit quantification: "
+                          --                          , "***"
+                          --                          , "***    " ++ intercalate ", " badInps
+                          --                          , "***"
+                          --                          , "*** While quantification and queries can co-exist in principle, SBV currently"
+                          --                          , "*** does not support this scenario. Avoid using quantifiers with user queries"
+                          --                          , "*** if possible. Please do get in touch if your use case does require such"
+                          --                          , "*** a feature to see how we can accommodate such scenarios."
+                          --                          ]
 
      case rm of
         -- Transitioning from setup
